@@ -1,0 +1,16 @@
+{
+  "server": {
+    "port": 3000
+  },
+  "database": {
+    "url": "postgresql://neondb_owner:npg_LvTB3UknZyC0@ep-old-haze-a1b9r6vf-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+  },
+  "smtp": {
+    "email": "",
+    "host": "",
+    "port": 465,
+    "password": "",
+    "ssl": 0,
+    "codeTemplate": ""
+  }
+}

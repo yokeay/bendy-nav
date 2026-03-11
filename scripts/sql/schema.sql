@@ -146,6 +146,8 @@ CREATE TABLE IF NOT EXISTS "user" (
   login_fail_count INTEGER DEFAULT 0,
   login_time TIMESTAMP,
   qq_open_id VARCHAR(200),
+  wx_open_id VARCHAR(200),
+  wx_unionid VARCHAR(200),
   nickname VARCHAR(200),
   status INTEGER DEFAULT 0,
   active DATE,
@@ -154,6 +156,8 @@ CREATE TABLE IF NOT EXISTS "user" (
 
 CREATE UNIQUE INDEX IF NOT EXISTS user_mail_uindex ON "user" (mail);
 CREATE UNIQUE INDEX IF NOT EXISTS user_qq_open_id_uindex ON "user" (qq_open_id);
+CREATE INDEX IF NOT EXISTS user_wx_open_id_index ON "user" (wx_open_id);
+CREATE INDEX IF NOT EXISTS user_wx_unionid_index ON "user" (wx_unionid);
 
 CREATE TABLE IF NOT EXISTS user_search_engine (
   user_id INTEGER PRIMARY KEY,
@@ -176,7 +180,8 @@ CREATE TABLE IF NOT EXISTS user_group (
   id BIGSERIAL PRIMARY KEY,
   name VARCHAR(50) NOT NULL,
   create_time TIMESTAMP,
-  sort INTEGER DEFAULT 0
+  sort INTEGER DEFAULT 0,
+  default_user_group INTEGER DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS plugins_todo (
@@ -200,5 +205,44 @@ CREATE TABLE IF NOT EXISTS plugins_todo_folder (
 );
 
 CREATE INDEX IF NOT EXISTS plugins_todo_folder_user_id_index ON plugins_todo_folder (user_id);
+
+CREATE TABLE IF NOT EXISTS ai (
+  id BIGSERIAL PRIMARY KEY,
+  message TEXT,
+  role VARCHAR(100),
+  create_time TIMESTAMP,
+  dialogue_id BIGINT,
+  ai_id VARCHAR(255),
+  user_id INTEGER,
+  reasoning_content TEXT
+);
+
+CREATE INDEX IF NOT EXISTS ai_user_id_index ON ai (user_id);
+CREATE INDEX IF NOT EXISTS ai_dialogue_id_index ON ai (dialogue_id);
+
+CREATE TABLE IF NOT EXISTS dialogue (
+  id BIGSERIAL PRIMARY KEY,
+  title VARCHAR(255),
+  create_time TIMESTAMP,
+  mode_id INTEGER,
+  user_id INTEGER
+);
+
+CREATE INDEX IF NOT EXISTS dialogue_user_id_index ON dialogue (user_id);
+
+CREATE TABLE IF NOT EXISTS ai_model (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(255),
+  tips VARCHAR(255),
+  api_host VARCHAR(255),
+  sk VARCHAR(255) NOT NULL,
+  model VARCHAR(255),
+  system_content TEXT,
+  create_time TIMESTAMP,
+  user_id INTEGER,
+  status INTEGER DEFAULT 1
+);
+
+CREATE INDEX IF NOT EXISTS ai_model_user_id_index ON ai_model (user_id);
 
 COMMIT;

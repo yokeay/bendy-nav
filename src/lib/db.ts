@@ -1,5 +1,5 @@
-import postgres from "postgres";
-import { getDatabaseUrl } from "@/lib/env";
+﻿import postgres from "postgres";
+import { getDatabaseUrl } from "@/lib/app-config";
 
 declare global {
   // eslint-disable-next-line no-var

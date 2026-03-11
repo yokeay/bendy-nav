@@ -1,7 +1,7 @@
-import { readFile } from "node:fs/promises";
+﻿import { readFile } from "node:fs/promises";
 import path from "node:path";
 import postgres from "postgres";
-import { getDatabaseUrl } from "../src/lib/env";
+import { getDatabaseUrl } from "../src/lib/app-config";
 
 async function run() {
   const sql = postgres(getDatabaseUrl(), { prepare: false, max: 1 });
