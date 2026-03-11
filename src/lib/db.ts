@@ -1,12 +1,14 @@
-﻿import postgres from "postgres";
+import postgres from "postgres";
 import { getDatabaseUrl } from "@/lib/app-config";
+
+type SqlClient = postgres.Sql<{}>;
 
 declare global {
   // eslint-disable-next-line no-var
-  var __mtabSql: ReturnType<typeof postgres> | undefined;
+  var __mtabSql: SqlClient | undefined;
 }
 
-function createClient() {
+function createClient(): SqlClient {
   return postgres(getDatabaseUrl(), {
     max: 10,
     idle_timeout: 30,
@@ -15,7 +17,7 @@ function createClient() {
   });
 }
 
-const sql = global.__mtabSql ?? createClient();
+const sql: SqlClient = global.__mtabSql ?? createClient();
 
 if (process.env.NODE_ENV !== "production") {
   global.__mtabSql = sql;

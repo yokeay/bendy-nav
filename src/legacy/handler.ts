@@ -3367,7 +3367,7 @@ async function handleWxLogin(ctx: LegacyContext): Promise<NextResponse> {
       SET login_ip = ${getRealIp(ctx.request)},
           login_time = ${nowDateTimeString()},
           login_fail_count = 0
-      WHERE id = ${userRow[0].id}
+      WHERE id = ${parseNumber(userRow[0].id, 0)}
     `;
   } else {
     if (mode === "bind") {
@@ -10159,7 +10159,7 @@ async function handleAiStream(ctx: LegacyContext): Promise<NextResponse> {
   `;
   await addAiMessage(user.user_id, dialogueId, "user", input, "");
   if (!dialogue.title || parseNumber(dialogue.mode_id, 0) !== modelId) {
-    const title = dialogue.title || input.slice(0, 30);
+    const title = toStringValue(dialogue.title, "") || input.slice(0, 30);
     await sql`
       UPDATE dialogue
       SET title = ${title}, mode_id = ${modelId}
@@ -10227,7 +10227,7 @@ async function handleAiStream(ctx: LegacyContext): Promise<NextResponse> {
         }
         try {
           const json = JSON.parse(jsonStr) as AnyObject;
-          const delta = (json.choices?.[0]?.delta ?? {}) as AnyObject;
+          const delta = deepGet<AnyObject>(json, "choices.0.delta", {});
           const chunk = toStringValue(delta.content, "");
           const reasoningChunk = toStringValue(delta.reasoning_content, "");
           if (chunk) {
