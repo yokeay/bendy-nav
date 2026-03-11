@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+﻿import { createHash, randomUUID } from "node:crypto";
 
 import {
 
@@ -41,6 +41,7 @@ import qs from "qs";
 import sharp from "sharp";
 
 import { getSmtpConfig } from "@/lib/app-config";
+import { createPluginsHandler, mergeLocalPluginCards } from "@/legacy/plugins";
 
 import sql from "@/lib/db";
 
@@ -5459,7 +5460,8 @@ async function handleCardController(ctx: LegacyContext, action: string): Promise
 
       `;
 
-      return jsonSuccess("ok", rows);
+      const merged = await mergeLocalPluginCards(ROOT_DIR, rows as AnyObject[]);
+      return jsonSuccess("ok", merged);
 
     }
 
@@ -9201,6 +9203,10 @@ async function handleAppsTopSearchController(
 
     }
 
+    case "baidu": {
+      return handleAppsTopSearchController(ctx, "baidutopsearch");
+    }
+
     case "zhihu": {
 
       const list = await fetchTopSearch("zhiHuTopSearch", ttl, async () => {
@@ -10473,37 +10479,23 @@ async function dispatchController(
 
 }
 
-
+const pluginsHandler = createPluginsHandler({
+  rootDir: ROOT_DIR,
+  memoryCache,
+  buildFileResponse,
+  renderNotFound: renderCardNotFoundHtml,
+  sanitizePluginName,
+  sanitizeRelativePublicPath,
+  toStringValue,
+  deepGet,
+  jsonSuccess,
+  jsonError,
+  handleAppsTopSearchController
+});
 
 async function handlePluginsPath(ctx: LegacyContext): Promise<NextResponse> {
-
-  const segments = ctx.pathSegments;
-
-  if (segments.length >= 4 && segments[2].toLowerCase() === "static") {
-
-    const pluginName = sanitizeRelativePublicPath(segments[1]);
-
-    const fileRelative = sanitizeRelativePublicPath(segments.slice(3).join("/"));
-
-    const pluginFile = path.join(ROOT_DIR, "plugins", pluginName, "static", fileRelative);
-
-    if (await fileExists(pluginFile)) {
-
-      const buffer = await readFile(pluginFile);
-
-      const type = mime.lookup(pluginFile) || "application/octet-stream";
-
-      return buildFileResponse(buffer, String(type), 60 * 60 * 24 * 7);
-
-    }
-
-  }
-
-  return renderCardNotFoundHtml();
-
+  return pluginsHandler(ctx);
 }
-
-
 
 function parseLegacyController(pathSegments: string[]): {
 
