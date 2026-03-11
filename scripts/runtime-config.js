@@ -31,7 +31,8 @@ function loadConfig() {
 
   try {
     const content = fs.readFileSync(configPath, "utf8");
-    config = JSON.parse(content) ?? {};
+    const normalized = content.replace(/^\uFEFF/, "");
+    config = JSON.parse(normalized) ?? {};
   } catch (error) {
     console.warn(`Missing or invalid config file: ${configPath}`);
   }

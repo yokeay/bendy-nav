@@ -79,7 +79,8 @@ export function loadConfig(): AppConfig {
   let parsed: unknown;
   try {
     const content = fs.readFileSync(CONFIG_PATH, "utf8");
-    parsed = JSON.parse(content) as Partial<AppConfig>;
+    const normalized = content.replace(/^\uFEFF/, "");
+    parsed = JSON.parse(normalized) as Partial<AppConfig>;
   } catch (error) {
     const fallback = normalizeConfig(undefined);
     cachedConfig = fallback;

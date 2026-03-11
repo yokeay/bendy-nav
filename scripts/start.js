@@ -2,11 +2,13 @@ const { spawn } = require("node:child_process");
 const path = require("node:path");
 const { loadConfig, getConfiguredPort } = require("./runtime-config");
 const { resolvePort } = require("./runtime-port");
+const { initOnStart } = require("./init-on-start");
 
 const { config, configPath } = loadConfig();
 const preferredPort = getConfiguredPort(config);
 
 (async () => {
+  await initOnStart();
   const { port, reason } = await resolvePort(preferredPort);
 
   if (reason === "occupied") {
