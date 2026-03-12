@@ -51,7 +51,6 @@ type PluginInfo = {
 const WEATHER_PLUGIN_TTL = 300;
 const WEATHER_PLUGIN_UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
-const MTAB_WEATHER_BASE = "https://auth.mtab.cc/weather";
 
 const PLUGIN_DIR_ALIAS: Record<string, string> = {
   topsearch: "topSearch"
@@ -283,89 +282,23 @@ export async function getWeatherV2CityFallback(): Promise<AnyObject> {
   };
 }
 
-export async function getWeatherV2IpLocation(
-  cache: CacheLike,
-  ip: string
-): Promise<AnyObject | null> {
-  const cacheKey = `weatherV2Ip:${ip || "default"}`;
-  const cached = cache.get(cacheKey);
-  if (cached !== null) {
-    return cached as AnyObject;
-  }
-  try {
-    const url = new URL(`${MTAB_WEATHER_BASE}/ipLocation`);
-    url.searchParams.set("ip", ip || "");
-    const response = await fetch(url.toString());
-    if (!response.ok) {
-      return null;
-    }
-    const json = (await response.json()) as AnyObject;
-    if (json && json.code === 1 && json.data) {
-      cache.set(cacheKey, json.data, WEATHER_PLUGIN_TTL);
-      return json.data as AnyObject;
-    }
-  } catch {
-    // ignore
-  }
-  return null;
-}
 
 export async function getWeatherV2Now(
   cache: CacheLike,
   cityId: string
 ): Promise<AnyObject> {
-  const cacheKey = `weatherV2Now:${cityId}`;
-  const cached = cache.get(cacheKey);
-  if (cached !== null) {
-    return cached as AnyObject;
-  }
-  try {
-    const url = new URL(`${MTAB_WEATHER_BASE}/cityWeather`);
-    url.searchParams.set("cityCode", cityId);
-    const response = await fetch(url.toString());
-    if (response.ok) {
-      const json = (await response.json()) as AnyObject;
-      if (json) {
-        cache.set(cacheKey, json, WEATHER_PLUGIN_TTL);
-        return json as AnyObject;
-      }
-    }
-  } catch {
-    // ignore
-  }
   const now = await getWeatherPluginNow(cache, cityId);
   const forecast = await getWeatherPluginForecast(cache, cityId);
   const list = buildWeatherV2List(now, forecast);
-  const fallback = { data: list };
-  cache.set(cacheKey, fallback, WEATHER_PLUGIN_TTL);
-  return fallback;
+  return { data: list };
 }
 
 export async function getWeatherV2Search(
   cache: CacheLike,
   city: string
 ): Promise<AnyObject[]> {
-  const cacheKey = `weatherV2Search:${city}`;
-  const cached = cache.get(cacheKey);
-  if (cached !== null) {
-    return cached as AnyObject[];
-  }
-  try {
-    const url = new URL(`${MTAB_WEATHER_BASE}/citySearch`);
-    url.searchParams.set("q", city);
-    const response = await fetch(url.toString());
-    if (response.ok) {
-      const json = (await response.json()) as AnyObject;
-      if (json && json.code === 1 && Array.isArray(json.data)) {
-        cache.set(cacheKey, json.data, WEATHER_PLUGIN_TTL);
-        return json.data as AnyObject[];
-      }
-    }
-  } catch {
-    // ignore
-  }
   const list = await getWeatherPluginSearch(cache, city);
-  const mapped = list.map((item) => ({
+  return list.map((item) => ({
     id: String(item.id ?? ""),
     cityZh: String(item.name ?? ""),
     provinceZh: "",
@@ -373,8 +306,6 @@ export async function getWeatherV2Search(
     leaderZh: String(item.name ?? ""),
     name: String(item.name ?? "")
   }));
-  cache.set(cacheKey, mapped, WEATHER_PLUGIN_TTL);
-  return mapped;
 }
 
 async function renderPluginView(

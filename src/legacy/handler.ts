@@ -89,7 +89,6 @@ import { getSmtpConfig } from "@/lib/app-config";
 import {
   createPluginsHandler,
   getWeatherV2CityFallback,
-  getWeatherV2IpLocation,
   getWeatherV2Now,
   getWeatherV2Search,
   mergeLocalPluginCards
@@ -19630,51 +19629,191 @@ async function handleAppsTodoController(
 
 
 async function handleAppsWeatherController(
-
-
-
   ctx: LegacyContext,
-
-
-
   action: string
-
-
-
 ): Promise<NextResponse> {
-
-
-
-  const gateway = toStringValue(
-
-
-
+  const gatewayValue = toStringValue(
     await cardConfigValue("weather", "gateway", "https://devapi.qweather.com"),
-
-
-
     "https://devapi.qweather.com"
-
-
-
   );
-
-
-
+  let gateway = gatewayValue.trim() || "https://devapi.qweather.com";
+  if (!/^https?:\/\//i.test(gateway)) {
+    gateway = `https://${gateway}`;
+  }
   const apiKey = toStringValue(await cardConfigValue("weather", "key", ""), "");
+  const hasApiKey = Boolean(apiKey);
 
+  const fetchQWeather = async (
+    pathValue: string,
+    params: Record<string, string | undefined>
+  ): Promise<AnyObject | null> => {
+    if (!hasApiKey) {
+      return null;
+    }
+    try {
+      const url = new URL(pathValue, gateway);
+      for (const [key, value] of Object.entries(params)) {
+        if (value) {
+          url.searchParams.set(key, value);
+        }
+      }
+      if (!url.searchParams.has("lang")) {
+        url.searchParams.set("lang", "zh");
+      }
+      if (!url.searchParams.has("key")) {
+        url.searchParams.set("key", apiKey);
+      }
+      const response = await fetch(url.toString(), {
+        headers: {
+          "X-QW-Api-Key": apiKey
+        }
+      });
+      if (!response.ok) {
+        return null;
+      }
+      return (await response.json()) as AnyObject;
+    } catch {
+      return null;
+    }
+  };
 
+  const mapGeoItem = (item: AnyObject): AnyObject => ({
+    id: String(item.id ?? ""),
+    cityZh: String(item.name ?? ""),
+    leaderZh: String(item.adm2 ?? item.city ?? item.name ?? ""),
+    provinceZh: String(item.adm1 ?? ""),
+    countryZh: String(item.country ?? "??"),
+    name: String(item.name ?? "")
+  });
+
+  const mapWeatherIconLocal = (textValue: string): string => {
+    const normalized = textValue.trim();
+    if (!normalized) {
+      return "yun";
+    }
+    if (normalized.includes("???")) return "yujiaxue";
+    if (normalized.includes("?")) return "lei";
+    if (normalized.includes("?")) return "xue";
+    if (normalized.includes("?") || normalized.includes("?")) return "wu";
+    if (normalized.includes("??")) return "shachen";
+    if (normalized.includes("??")) return "zhenyu";
+    if (normalized.includes("?")) return "yu";
+    if (normalized.includes("?")) return "yin";
+    if (normalized.includes("?")) return "qing";
+    if (normalized.includes("?")) return "yun";
+    return "yun";
+  };
+
+  const buildWeatherV2FromQWeather = async (
+    cityId: string
+  ): Promise<AnyObject | null> => {
+    if (!hasApiKey) {
+      return null;
+    }
+    const [nowJson, dailyJson, uvJson] = await Promise.all([
+      fetchQWeather("/v7/weather/now", { location: cityId }),
+      fetchQWeather("/v7/weather/7d", { location: cityId }),
+      fetchQWeather("/v7/indices/1d", { location: cityId, type: "5" })
+    ]);
+    if (!nowJson || !dailyJson || nowJson.code !== "200" || dailyJson.code !== "200") {
+      return null;
+    }
+    const now = (nowJson.now ?? {}) as AnyObject;
+    const daily = Array.isArray(dailyJson.daily) ? dailyJson.daily : [];
+    let uvIndex = "";
+    let uvDescription = "";
+    if (uvJson && uvJson.code === "200" && Array.isArray(uvJson.daily) && uvJson.daily.length > 0) {
+      const uv = uvJson.daily[0] as AnyObject;
+      uvIndex = String(uv.level ?? uv.category ?? "");
+      uvDescription = String(uv.category ?? uv.text ?? "");
+    }
+
+    const list = daily.map((day: AnyObject) => {
+      const text = String(day.textDay ?? day.text ?? "");
+      return {
+        date: String(day.fxDate ?? ""),
+        tem1: String(day.tempMax ?? ""),
+        tem2: String(day.tempMin ?? ""),
+        text,
+        wea_img: mapWeatherIconLocal(text)
+      };
+    });
+
+    if (list.length === 0) {
+      return null;
+    }
+
+    const current = list[0] as AnyObject;
+    current.tem = String(now.temp ?? current.tem1 ?? "");
+    current.text = String(now.text ?? current.text ?? "");
+    current.wea_img = mapWeatherIconLocal(current.text);
+    const windDir = String(now.windDir ?? "");
+    current.win = windDir ? [windDir] : [];
+    const windScale = String(now.windScale ?? "");
+    const windSpeed = String(now.windSpeed ?? "");
+    current.win_speed = windScale ? `${windScale}?` : windSpeed;
+    const vis = String(now.vis ?? "");
+    current.visibility = vis ? (/km/i.test(vis) ? vis : `${vis}km`) : "";
+    const hum = String(now.humidity ?? "");
+    current.humidity = hum ? (hum.includes("%") ? hum : `${hum}%`) : "";
+    current.pressure = String(now.pressure ?? "");
+    current.uvIndex = uvIndex;
+    current.uvDescription = uvDescription;
+
+    return {
+      update_time: String(now.obsTime ?? ""),
+      data: list
+    };
+  };
 
   switch (action.toLowerCase()) {
-
     case "ipv2": {
       const ip = getRealIp(ctx.request);
-      let city =
-        (await getWeatherV2IpLocation(memoryCache, ip)) ??
-        (await getWeatherV2CityFallback());
-      const cityName = `${city?.provinceZh ?? ""}${city?.cityZh ?? ""}`;
-      if (!cityName || cityName.includes("?")) {
-        city = await getWeatherV2CityFallback();
+      let city: AnyObject | null = null;
+      let latitude = 39.91;
+      let longitude = 116.41;
+      let cityName = "";
+      let regionName = "";
+      let countryName = "??";
+      try {
+        const response = await fetch(`https://ipapi.co/${ip}/json/`);
+        if (response.ok) {
+          const data = (await response.json()) as AnyObject;
+          latitude = Number(data.latitude ?? latitude);
+          longitude = Number(data.longitude ?? longitude);
+          cityName = toStringValue(data.city, "");
+          regionName = toStringValue(data.region, "");
+          countryName = toStringValue(data.country_name, countryName);
+        }
+      } catch {
+        // ignore
+      }
+
+      if (hasApiKey) {
+        const geoJson = await fetchQWeather("/geo/v2/city/lookup", {
+          location: `${longitude},${latitude}`
+        });
+        if (geoJson && geoJson.code === "200" && Array.isArray(geoJson.location) && geoJson.location.length > 0) {
+          city = mapGeoItem(geoJson.location[0]);
+        } else if (cityName) {
+          const geoByName = await fetchQWeather("/geo/v2/city/lookup", {
+            location: cityName
+          });
+          if (geoByName && geoByName.code === "200" && Array.isArray(geoByName.location) && geoByName.location.length > 0) {
+            city = mapGeoItem(geoByName.location[0]);
+          }
+        }
+      }
+
+      if (!city) {
+        city = {
+          id: "101010100",
+          cityZh: cityName || "??",
+          leaderZh: regionName || cityName || "??",
+          provinceZh: regionName || "??",
+          countryZh: countryName || "??",
+          name: cityName || "??"
+        };
       }
       return jsonSuccess("ok", city);
     }
@@ -19686,7 +19825,8 @@ async function handleAppsWeatherController(
           deepGet(ctx.requestData.body, "cityId", "101010100")
         )
       );
-      const data = await getWeatherV2Now(memoryCache, cityId);
+      const data = (await buildWeatherV2FromQWeather(cityId)) ??
+        (await getWeatherV2Now(memoryCache, cityId));
       return jsonSuccess("ok", data);
     }
     case "citysearchv2": {
@@ -19696,541 +19836,124 @@ async function handleAppsWeatherController(
       if (!city) {
         return jsonSuccess("ok", []);
       }
+      if (hasApiKey) {
+        const geoJson = await fetchQWeather("/geo/v2/city/lookup", { location: city });
+        if (geoJson && geoJson.code === "200" && Array.isArray(geoJson.location)) {
+          const mapped = geoJson.location.map(mapGeoItem);
+          return jsonSuccess("ok", mapped);
+        }
+      }
       const list = await getWeatherV2Search(memoryCache, city);
       return jsonSuccess("ok", list);
     }
     case "ip": {
-
-
       const ip = getRealIp(ctx.request);
 
-
-
       try {
-
-
-
         const response = await fetch(`https://ipapi.co/${ip}/json/`);
 
-
-
         if (response.ok) {
-
-
-
           const data = (await response.json()) as AnyObject;
-
-
-
           const latitude = Number(data.latitude ?? 39.91);
-
-
-
           const longitude = Number(data.longitude ?? 116.41);
-
-
-
           return NextResponse.json({
-
-
-
             code: 1,
-
-
-
             msg: "success",
-
-
-
             data: {
-
-
-
               ipAddress: ip,
-
-
-
               latitude,
-
-
-
               longitude,
-
-
-
               cityName: toStringValue(data.city, ""),
-
-
-
               regionName: toStringValue(data.region, ""),
-
-
-
               countryName: toStringValue(data.country_name, "")
-
-
-
             }
-
-
-
           });
-
-
-
         }
-
-
-
       } catch {
-
-
-
         // ignore
-
-
-
       }
-
-
 
       return NextResponse.json({
-
-
-
         code: 1,
-
-
-
         msg: "success",
-
-
-
         data: {
-
-
-
           ipAddress: ip,
-
-
-
           latitude: 39.91,
-
-
-
           longitude: 116.41,
-
-
-
           cityName: "",
-
-
-
           regionName: "",
-
-
-
           countryName: ""
-
-
-
         }
-
-
-
       });
-
-
-
     }
-
-
-
     case "setting": {
-
-
-
       await getAdmin(ctx);
-
-
-
       if (ctx.request.method.toUpperCase() === "POST") {
-
-
-
         const form = ctx.requestData.body as AnyObject;
-
-
-
         await saveCardConfigs("weather", form);
-
-
-
-        return jsonSuccess("保存成功");
-
-
-
+        return jsonSuccess("????");
       }
-
-
-
       if (ctx.request.method.toUpperCase() === "PUT") {
-
-
-
         const conf = await loadCardConfig("weather");
-
-
-
         return jsonSuccess("ok", conf);
-
-
-
       }
-
-
-
       return jsonError("not support");
-
-
-
     }
-
-
-
     case "everyday": {
-
-
-
       const location = toStringValue(deepGet(ctx.requestData.query, "location", "101010100"));
-
-
-
+      if (!hasApiKey) {
+        return jsonError("API KEY missing");
+      }
       try {
-
-
-
         const url = new URL("/v7/weather/7d", gateway);
-
-
-
         url.searchParams.set("location", location);
-
-
-
         url.searchParams.set("key", apiKey);
-
-
-
-        const response = await fetch(url.toString());
-
-
-
+        const response = await fetch(url.toString(), {
+          headers: {
+            "X-QW-Api-Key": apiKey
+          }
+        });
         if (response.ok) {
-
-
-
           const json = (await response.json()) as AnyObject;
-
-
-
           if (toStringValue(json.code, "") === "200") {
-
-
-
             return jsonSuccess(json.daily ?? []);
-
-
-
           }
-
-
-
         }
-
-
-
       } catch {
-
-
-
         // ignore
-
-
-
       }
-
-
-
-      return jsonError("数据获取错误");
-
-
-
+      return jsonError("??????");
     }
-
-
-
     case "now": {
-
-
-
       const location = toStringValue(deepGet(ctx.requestData.query, "location", "101010100"));
-
-
-
+      if (!hasApiKey) {
+        return jsonError("API KEY missing");
+      }
       try {
-
-
-
         const url = new URL("/v7/weather/now", gateway);
-
-
-
         url.searchParams.set("location", location);
-
-
-
         url.searchParams.set("key", apiKey);
-
-
-
-        const response = await fetch(url.toString());
-
-
-
+        const response = await fetch(url.toString(), {
+          headers: {
+            "X-QW-Api-Key": apiKey
+          }
+        });
         if (response.ok) {
-
-
-
           const json = (await response.json()) as AnyObject;
-
-
-
           if (toStringValue(json.code, "") === "200") {
-
-
-
             return jsonSuccess(json.now ?? {});
-
-
-
           }
-
-
-
         }
-
-
-
       } catch {
-
-
-
         // ignore
-
-
-
       }
-
-
-
-      return jsonError("数据获取错误");
-
-
-
+      return jsonError("??????");
     }
-
-
-
-    case "locationtocity": {
-
-
-
-      const location = toStringValue(
-
-
-
-        deepGet(ctx.requestData.all, "location", "101010100")
-
-
-
-      );
-
-
-
-      try {
-
-
-
-        const url = new URL("https://geoapi.qweather.com/v2/city/lookup");
-
-
-
-        url.searchParams.set("location", location);
-
-
-
-        url.searchParams.set("key", apiKey);
-
-
-
-        const response = await fetch(url.toString());
-
-
-
-        if (response.ok) {
-
-
-
-          const json = (await response.json()) as AnyObject;
-
-
-
-          if (toStringValue(json.code, "") === "200") {
-
-
-
-            const list = toArray<AnyObject>(json.location);
-
-
-
-            if (list.length > 0) {
-
-
-
-              return jsonSuccess(list[0]);
-
-
-
-            }
-
-
-
-          }
-
-
-
-        }
-
-
-
-      } catch {
-
-
-
-        // ignore
-
-
-
-      }
-
-
-
-      return jsonError("数据获取错误");
-
-
-
-    }
-
-
-
-    case "citysearch": {
-
-
-
-      const city = toStringValue(deepGet(ctx.requestData.body, "city", "")).trim();
-
-
-
-      if (!city) {
-
-
-
-        return jsonError("数据获取错误");
-
-
-
-      }
-
-
-
-      try {
-
-
-
-        const url = new URL("https://geoapi.qweather.com/v2/city/lookup");
-
-
-
-        url.searchParams.set("location", city);
-
-
-
-        url.searchParams.set("key", apiKey);
-
-
-
-        const response = await fetch(url.toString());
-
-
-
-        if (response.ok) {
-
-
-
-          const json = (await response.json()) as AnyObject;
-
-
-
-          if (toStringValue(json.code, "") === "200") {
-
-
-
-            return jsonSuccess(json.location ?? []);
-
-
-
-          }
-
-
-
-        }
-
-
-
-      } catch (error) {
-
-
-
-        return jsonError(error instanceof Error ? error.message : "数据获取错误");
-
-
-
-      }
-
-
-
-      return jsonError("数据获取错误");
-
-
-
-    }
-
-
-
     default:
-
-
-
       return jsonError("not action");
-
-
-
   }
-
-
-
 }
+
 
 
 
