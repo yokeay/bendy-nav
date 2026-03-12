@@ -19669,9 +19669,13 @@ async function handleAppsWeatherController(
 
     case "ipv2": {
       const ip = getRealIp(ctx.request);
-      const city =
+      let city =
         (await getWeatherV2IpLocation(memoryCache, ip)) ??
         (await getWeatherV2CityFallback());
+      const cityName = `${city?.provinceZh ?? ""}${city?.cityZh ?? ""}`;
+      if (!cityName || cityName.includes("?")) {
+        city = await getWeatherV2CityFallback();
+      }
       return jsonSuccess("ok", city);
     }
     case "nowv2": {
