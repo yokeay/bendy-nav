@@ -1,161 +1,201 @@
-<!doctype html>
-<html lang="zh">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ÃÏ∆¯œÍ«È</title>
-  <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      width: 100%;
-      height: 100%;
-      font-family: "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-      background: #f1f5f9;
-      color: #0f172a;
-    }
-    .wrap {
-      max-width: 760px;
-      margin: 0 auto;
-      padding: 20px;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
-    .panel {
-      background: #fff;
-      border-radius: 16px;
-      padding: 16px;
-      box-shadow: 0 6px 20px rgba(15, 23, 42, 0.08);
-    }
-    .header {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      flex-wrap: wrap;
-    }
-    .title {
-      font-size: 20px;
-      font-weight: 700;
-    }
-    .search {
-      margin-left: auto;
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-    input[type="text"] {
-      border: 1px solid #e2e8f0;
-      border-radius: 10px;
-      padding: 8px 12px;
-      min-width: 220px;
-      font-size: 14px;
-    }
-    .btn {
-      border: none;
-      background: #2563eb;
-      color: #fff;
-      border-radius: 10px;
-      padding: 8px 14px;
-      cursor: pointer;
-      font-size: 14px;
-    }
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-      gap: 12px;
-      margin-top: 12px;
-    }
-    .metric {
-      background: #f8fafc;
-      border-radius: 12px;
-      padding: 12px;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-    .metric .label {
-      font-size: 12px;
-      color: #64748b;
-    }
-    .metric .value {
-      font-size: 18px;
-      font-weight: 600;
-    }
-    .result {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    .result button {
-      text-align: left;
-      border: 1px solid #e2e8f0;
-      background: #fff;
-      padding: 8px 12px;
-      border-radius: 10px;
-      cursor: pointer;
-      font-size: 14px;
-    }
-    .hint {
-      font-size: 12px;
-      color: #64748b;
-    }
-  </style>
-</head>
-<body>
-  <div class="wrap">
-    <div class="panel">
-      <div class="header">
-        <div class="title" id="city">--</div>
-        <div class="search">
-          <input type="text" id="cityInput" placeholder=" ‰»Î≥« –√˚£¨»Á ±±æ©" />
-          <button class="btn" id="searchBtn">À—À˜</button>
-        </div>
-      </div>
-      <div class="grid">
-        <div class="metric">
-          <div class="label">µ±«∞Œ¬∂»</div>
-          <div class="value" id="temp">--</div>
-        </div>
-        <div class="metric">
-          <div class="label">ÃÏ∆¯«Èøˆ</div>
-          <div class="value" id="weather">--</div>
-        </div>
-        <div class="metric">
-          <div class="label">Œ¬∂»∑∂Œß</div>
-          <div class="value" id="range">--</div>
-        </div>
-        <div class="metric">
-          <div class="label">∑Á¡¶∑ÁœÚ</div>
-          <div class="value" id="wind">--</div>
-        </div>
-        <div class="metric">
-          <div class="label"> ™∂»</div>
-          <div class="value" id="humidity">--</div>
-        </div>
-        <div class="metric">
-          <div class="label">∏¸–¬ ±º‰</div>
-          <div class="value" id="time">--</div>
-        </div>
-      </div>
-      <div class="hint" id="status"></div>
-    </div>
-
-    <div class="panel">
-      <div class="title" style="font-size:16px;">≥« –À—À˜Ω·π˚</div>
-      <div class="result" id="result"></div>
-    </div>
-  </div>
-
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Â§©Ê∞îËØ¶ÊÉÖ</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      font-family: "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      background: #f1f5f9;
+      color: #0f172a;
+    }
+    .wrap {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .panel {
+      background: #fff;
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: 0 6px 20px rgba(15, 23, 42, 0.08);
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .title {
+      font-size: 20px;
+      font-weight: 700;
+    }
+    .search {
+      margin-left: auto;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    input[type="text"] {
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 8px 12px;
+      min-width: 220px;
+      font-size: 14px;
+    }
+    .btn {
+      border: none;
+      background: #2563eb;
+      color: #fff;
+      border-radius: 10px;
+      padding: 8px 14px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 12px;
+      margin-top: 12px;
+    }
+    .metric {
+      background: #f8fafc;
+      border-radius: 12px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .metric .label {
+      font-size: 12px;
+      color: #64748b;
+    }
+    .metric .value {
+      font-size: 18px;
+      font-weight: 600;
+    }
+    .result {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .result button {
+      text-align: left;
+      border: 1px solid #e2e8f0;
+      background: #fff;
+      padding: 8px 12px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .hint {
+      font-size: 12px;
+      color: #64748b;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="panel">
+      <div class="header">
+        <div class="title" id="city">--</div>
+        <div class="search">
+          <input type="text" id="cityInput" placeholder="ËæìÂÖ•ÂüéÂ∏ÇÂêçÔºåÂ¶Ç Âåó‰∫¨" />
+          <button class="btn" id="searchBtn">ÊêúÁ¥¢</button>
+        </div>
+      </div>
+      <div class="grid">
+        <div class="metric">
+          <div class="label">ÂΩìÂâçÊ∏©Â∫¶</div>
+          <div class="value" id="temp">--</div>
+        </div>
+        <div class="metric">
+          <div class="label">Â§©Ê∞îÊÉÖÂÜµ</div>
+          <div class="value" id="weather">--</div>
+        </div>
+        <div class="metric">
+          <div class="label">Ê∏©Â∫¶ËåÉÂõ¥</div>
+          <div class="value" id="range">--</div>
+        </div>
+        <div class="metric">
+          <div class="label">È£éÂäõÈ£éÂêë</div>
+          <div class="value" id="wind">--</div>
+        </div>
+        <div class="metric">
+          <div class="label">ÊπøÂ∫¶</div>
+          <div class="value" id="humidity">--</div>
+        </div>
+        <div class="metric">
+          <div class="label">Êõ¥Êñ∞Êó∂Èó¥</div>
+          <div class="value" id="time">--</div>
+        </div>
+      </div>
+      <div class="hint" id="status"></div>
+    </div>
+
+    <div class="panel">
+      <div class="title" style="font-size:16px;">ÂüéÂ∏ÇÊêúÁ¥¢ÁªìÊûú</div>
+      <div class="result" id="result"></div>
+    </div>
+  </div>
+
   <script>
-    const DEFAULT_CITY = { id: '101010100', name: '±±æ©' }
+const DEFAULT_CITY = { id: '101010100', name: '??' }
 
-    function getCity () {
+    function getSavedCity () {
       try {
         const saved = JSON.parse(localStorage.getItem('weather_city') || '')
         if (saved && saved.id) return saved
       } catch (e) {}
-      return DEFAULT_CITY
+      return null
+    }
+
+    async function searchCityByName (name) {
+      if (!name) return []
+      try {
+        const res = await fetch(`/plugins/weather/api/search?city=${encodeURIComponent(name)}`)
+        const json = await res.json()
+        return json.code === 1 ? (json.data || []) : []
+      } catch (e) {
+        return []
+      }
+    }
+
+    async function detectCity () {
+      try {
+        const res = await fetch('/apps.weather.Index/ip')
+        const json = await res.json()
+        const data = json && json.data ? json.data : {}
+        const candidates = []
+        if (data.cityName) candidates.push(data.cityName)
+        if (data.regionName && data.regionName !== data.cityName) candidates.push(data.regionName)
+        for (const name of candidates) {
+          const list = await searchCityByName(name)
+          if (list.length) {
+            const city = { id: String(list[0].id), name: String(list[0].name) }
+            localStorage.setItem('weather_city', JSON.stringify(city))
+            return city
+          }
+        }
+      } catch (e) {}
+      return null
+    }
+
+    async function resolveCity () {
+      const saved = getSavedCity()
+      if (saved && !(saved.id === DEFAULT_CITY.id && saved.name === DEFAULT_CITY.name)) {
+        return saved
+      }
+      const detected = await detectCity()
+      return detected || saved || DEFAULT_CITY
     }
 
     function setCity (city) {
@@ -164,9 +204,9 @@
     }
 
     async function loadWeather () {
-      const city = getCity()
+      const city = await resolveCity()
       document.getElementById('city').textContent = city.name || '--'
-      document.getElementById('status').textContent = 'º”‘ÿ÷–...'
+      document.getElementById('status').textContent = '???...'
       try {
         const [nowRes, forecastRes] = await Promise.all([
           fetch(`/plugins/weather/api/now?cityId=${encodeURIComponent(city.id)}`),
@@ -178,7 +218,7 @@
         const forecast = forecastJson.code === 1 ? forecastJson.data : {}
 
         document.getElementById('city').textContent = now.city || forecast.city || city.name
-        document.getElementById('temp').textContent = now.temp ? `${now.temp}°Ê` : '--'
+        document.getElementById('temp').textContent = now.temp ? `${now.temp}?` : '--'
         document.getElementById('weather').textContent = now.weather || forecast.weather || '--'
         document.getElementById('range').textContent = forecast.temp1 && forecast.temp2 ? `${forecast.temp2} / ${forecast.temp1}` : '--'
         document.getElementById('wind').textContent = now.wind || '--'
@@ -186,7 +226,7 @@
         document.getElementById('time').textContent = now.time || forecast.ptime || '--'
         document.getElementById('status').textContent = ''
       } catch (e) {
-        document.getElementById('status').textContent = 'º”‘ÿ ß∞‹£¨«Î…‘∫Û÷ÿ ‘'
+        document.getElementById('status').textContent = '??????????'
       }
     }
 
@@ -194,14 +234,12 @@
       const keyword = document.getElementById('cityInput').value.trim()
       if (!keyword) return
       const resultEl = document.getElementById('result')
-      resultEl.innerHTML = 'À—À˜÷–...'
+      resultEl.innerHTML = '???...'
       try {
-        const res = await fetch(`/plugins/weather/api/search?city=${encodeURIComponent(keyword)}`)
-        const json = await res.json()
-        const list = json.code === 1 ? (json.data || []) : []
+        const list = await searchCityByName(keyword)
         resultEl.innerHTML = ''
         if (!list.length) {
-          resultEl.textContent = '√ª”–∆•≈‰Ω·π˚'
+          resultEl.textContent = '??????'
           return
         }
         list.slice(0, 10).forEach(item => {
@@ -211,7 +249,7 @@
           resultEl.appendChild(btn)
         })
       } catch (e) {
-        resultEl.textContent = 'À—À˜ ß∞‹'
+        resultEl.textContent = '????'
       }
     }
 
@@ -221,6 +259,6 @@
     })
 
     loadWeather()
-  </script>
-</body>
-</html>
+</script>
+</body>
+</html>

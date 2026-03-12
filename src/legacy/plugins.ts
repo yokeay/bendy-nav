@@ -102,7 +102,14 @@ async function fetchWeatherCn(url: string): Promise<string> {
     if (!response.ok) {
       return "";
     }
-    return await response.text();
+    try {
+      const buffer = await response.arrayBuffer();
+      // weather.com.cn often returns GBK/GB18030 encoded responses.
+      const decoder = new TextDecoder("gb18030");
+      return decoder.decode(buffer);
+    } catch {
+      return await response.text();
+    }
   } catch {
     return "";
   }
