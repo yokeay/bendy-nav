@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>天气</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      font-family: "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      background: transparent;
+      color: #1f2937;
+    }
+    .card {
+      width: 100%;
+      height: 100%;
+      box-sizing: border-box;
+      padding: 12px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(14, 165, 233, 0.08));
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: #1e40af;
+    }
+    .city {
+      font-weight: 600;
+    }
+    .temp {
+      font-size: 28px;
+      font-weight: 700;
+      color: #0f172a;
+    }
+    .meta {
+      font-size: 12px;
+      color: #475569;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .footer {
+      margin-top: auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      color: #64748b;
+    }
+    .more {
+      border: none;
+      background: #e0f2fe;
+      color: #0284c7;
+      font-size: 12px;
+      padding: 4px 8px;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="header">
+      <span class="city" id="city">--</span>
+      <span id="weather">--</span>
+    </div>
+    <div class="temp" id="temp">--</div>
+    <div class="meta">
+      <span id="range">--</span>
+      <span id="wind">--</span>
+      <span id="humidity">--</span>
+    </div>
+    <div class="footer">
+      <span id="time">--</span>
+      <button class="more" id="openWindow">详情</button>
+    </div>
+  </div>
+
+  <script src="/static/js/card.js"></script>
+  <script>
+    const DEFAULT_CITY = { id: '101010100', name: '北京' }
+
+    function getCity () {
+      try {
+        const saved = JSON.parse(localStorage.getItem('weather_city') || '')
+        if (saved && saved.id) return saved
+      } catch (e) {}
+      return DEFAULT_CITY
+    }
+
+    async function loadWeather () {
+      const city = getCity()
+      document.getElementById('city').textContent = city.name || '--'
+
+      try {
+        const [nowRes, forecastRes] = await Promise.all([
+          fetch(`/plugins/weather/api/now?cityId=${encodeURIComponent(city.id)}`),
+          fetch(`/plugins/weather/api/forecast?cityId=${encodeURIComponent(city.id)}`)
+        ])
+        const nowJson = await nowRes.json()
+        const forecastJson = await forecastRes.json()
+
+        const now = nowJson.code === 1 ? nowJson.data : {}
+        const forecast = forecastJson.code === 1 ? forecastJson.data : {}
+
+        document.getElementById('city').textContent = now.city || forecast.city || city.name
+        document.getElementById('temp').textContent = now.temp ? `${now.temp}℃` : '--'
+        document.getElementById('weather').textContent = now.weather || forecast.weather || '--'
+        document.getElementById('range').textContent = forecast.temp1 && forecast.temp2 ? `${forecast.temp2} / ${forecast.temp1}` : '--'
+        document.getElementById('wind').textContent = now.wind ? `风向 ${now.wind}` : '--'
+        document.getElementById('humidity').textContent = now.humidity ? `湿度 ${now.humidity}` : '--'
+        document.getElementById('time').textContent = now.time || forecast.ptime || ''
+      } catch (e) {
+        document.getElementById('temp').textContent = '--'
+      }
+    }
+
+    document.getElementById('openWindow').addEventListener('click', () => {
+      if (typeof openCard === 'function') {
+        openCard({
+          name: '天气',
+          src: '/plugins/weather/static/ico.png',
+          url: '/plugins/weather/view/window.html'
+        })
+      } else {
+        window.location.href = '/plugins/weather/window'
+      }
+    })
+
+    loadWeather()
+  </script>
+</body>
+</html>
