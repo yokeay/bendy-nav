@@ -215,6 +215,91 @@ async function getWeatherPluginSearch(
   }
 }
 
+function normalizeTemp(value: unknown): string {
+  const text = String(value ?? "");
+  const match = text.match(/-?\d+/);
+  if (match) {
+    return match[0];
+  }
+  return text.replace(/[^\d-]/g, "");
+}
+
+function mapWeatherIcon(text: string): string {
+  const normalized = text.trim();
+  if (!normalized) {
+    return "yun";
+  }
+  if (normalized.includes("雨夹雪")) return "yujiaxue";
+  if (normalized.includes("雷")) return "lei";
+  if (normalized.includes("雪")) return "xue";
+  if (normalized.includes("雾") || normalized.includes("霾")) return "wu";
+  if (normalized.includes("沙")) return "shachen";
+  if (normalized.includes("阵雨")) return "zhenyu";
+  if (normalized.includes("雨")) return "yu";
+  if (normalized.includes("阴")) return "yin";
+  if (normalized.includes("晴")) return "qing";
+  if (normalized.includes("云")) return "yun";
+  return "yun";
+}
+
+function buildWeatherV2List(now: AnyObject, forecast: AnyObject): AnyObject[] {
+  const text = String(now.weather ?? forecast.weather ?? "");
+  const tem = normalizeTemp(now.temp ?? "");
+  const tem1 = normalizeTemp(forecast.temp1 ?? "");
+  const tem2 = normalizeTemp(forecast.temp2 ?? "");
+  const icon = mapWeatherIcon(text);
+  const base = new Date();
+  const list: AnyObject[] = [];
+  for (let i = 0; i < 7; i += 1) {
+    const date = new Date(base);
+    date.setDate(base.getDate() + i);
+    list.push({
+      date: date.toISOString().slice(0, 10),
+      tem: tem || tem1 || tem2,
+      tem1: tem1 || tem,
+      tem2: tem2 || tem,
+      text,
+      wea_img: icon
+    });
+  }
+  return list;
+}
+
+export async function getWeatherV2CityFallback(): Promise<AnyObject> {
+  return {
+    cityZh: "北京",
+    provinceZh: "北京",
+    countryZh: "中国",
+    leaderZh: "北京",
+    id: "101010100"
+  };
+}
+
+export async function getWeatherV2Now(
+  cache: CacheLike,
+  cityId: string
+): Promise<AnyObject> {
+  const now = await getWeatherPluginNow(cache, cityId);
+  const forecast = await getWeatherPluginForecast(cache, cityId);
+  const list = buildWeatherV2List(now, forecast);
+  return { data: list };
+}
+
+export async function getWeatherV2Search(
+  cache: CacheLike,
+  city: string
+): Promise<AnyObject[]> {
+  const list = await getWeatherPluginSearch(cache, city);
+  return list.map((item) => ({
+    id: String(item.id ?? ""),
+    cityZh: String(item.name ?? ""),
+    provinceZh: "",
+    countryZh: "中国",
+    leaderZh: String(item.name ?? ""),
+    name: String(item.name ?? "")
+  }));
+}
+
 async function renderPluginView(
   rootDir: string,
   pluginName: string,

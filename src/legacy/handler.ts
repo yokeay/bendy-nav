@@ -41,7 +41,13 @@ import qs from "qs";
 import sharp from "sharp";
 
 import { getSmtpConfig } from "@/lib/app-config";
-import { createPluginsHandler, mergeLocalPluginCards } from "@/legacy/plugins";
+import {
+  createPluginsHandler,
+  getWeatherV2CityFallback,
+  getWeatherV2Now,
+  getWeatherV2Search,
+  mergeLocalPluginCards
+} from "@/legacy/plugins";
 
 import sql from "@/lib/db";
 
@@ -275,6 +281,23 @@ function nowDateTimeString(): string {
 
   return new Date().toISOString().slice(0, 19).replace("T", " ");
 
+}
+
+function safeJsonStringify(value: unknown): string {
+  const seen = new WeakSet<object>();
+  return JSON.stringify(value, (_, val) => {
+    if (typeof val === "bigint") {
+      return val.toString();
+    }
+    if (typeof val === "object" && val !== null) {
+      const obj = val as object;
+      if (seen.has(obj)) {
+        return undefined;
+      }
+      seen.add(obj);
+    }
+    return val;
+  });
 }
 
 
@@ -2209,8 +2232,8 @@ async function getSiteData(ctx: LegacyContext): Promise<AnyObject> {
 
 
 async function decorateLinkData(linkData: unknown): Promise<unknown> {
-
-  const list = Array.isArray(linkData) ? [...linkData] : [];
+  const parsed = maybeParseJson<unknown>(linkData, []);
+  const list = Array.isArray(parsed) ? [...parsed] : [];
 
   if (list.length === 0) {
 
@@ -2357,9 +2380,8 @@ async function getTabbarDataForUser(ctx: LegacyContext): Promise<unknown> {
     `;
 
     if (rows.length > 0) {
-
-      return rows[0].tabs ?? [];
-
+      const parsed = maybeParseJson<unknown>(rows[0].tabs ?? [], []);
+      return Array.isArray(parsed) ? parsed : [];
     }
 
   }
@@ -4650,12 +4672,10 @@ async function handleLinkController(ctx: LegacyContext, action: string): Promise
 
       if (existing.length > 0) {
 
+        const historySnapshot = safeJsonStringify(existing[0].link ?? []);
         await sql`
-
           INSERT INTO history(user_id, link, create_time)
-
-          VALUES (${user.user_id}, ${JSON.stringify(existing[0].link ?? [])}, ${nowDateTimeString()})
-
+          VALUES (${user.user_id}, ${historySnapshot}, ${nowDateTimeString()})
         `;
 
         const historyRows = await sql<{ id: number }[]>`
@@ -4688,26 +4708,20 @@ async function handleLinkController(ctx: LegacyContext, action: string): Promise
 
         }
 
+        const serializedLink = safeJsonStringify(link);
         await sql`
-
           UPDATE link
-
-          SET link = ${JSON.stringify(link)},
-
+          SET link = ${serializedLink},
               update_time = ${nowDateTimeString()}
-
           WHERE user_id = ${user.user_id}
-
         `;
 
       } else {
 
+        const serializedLink = safeJsonStringify(link);
         await sql`
-
           INSERT INTO link(user_id, link, update_time)
-
-          VALUES (${user.user_id}, ${JSON.stringify(link)}, ${nowDateTimeString()})
-
+          VALUES (${user.user_id}, ${serializedLink}, ${nowDateTimeString()})
         `;
 
       }
@@ -9825,6 +9839,31 @@ async function handleAppsWeatherController(
 
   switch (action.toLowerCase()) {
 
+    case "ipv2": {
+      const city = await getWeatherV2CityFallback();
+      return jsonSuccess("ok", city);
+    }
+    case "nowv2": {
+      const cityId = toStringValue(
+        deepGet(
+          ctx.requestData.query,
+          "cityId",
+          deepGet(ctx.requestData.body, "cityId", "101010100")
+        )
+      );
+      const data = await getWeatherV2Now(memoryCache, cityId);
+      return jsonSuccess("ok", data);
+    }
+    case "citysearchv2": {
+      const city = toStringValue(
+        deepGet(ctx.requestData.body, "city", deepGet(ctx.requestData.query, "city", ""))
+      ).trim();
+      if (!city) {
+        return jsonSuccess("ok", []);
+      }
+      const list = await getWeatherV2Search(memoryCache, city);
+      return jsonSuccess("ok", list);
+    }
     case "ip": {
 
       const ip = getRealIp(ctx.request);
