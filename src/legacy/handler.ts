@@ -19682,7 +19682,7 @@ async function handleAppsWeatherController(
     cityZh: String(item.name ?? ""),
     leaderZh: String(item.adm2 ?? item.city ?? item.name ?? ""),
     provinceZh: String(item.adm1 ?? ""),
-    countryZh: String(item.country ?? "??"),
+    countryZh: String(item.country ?? "中国"),
     name: String(item.name ?? "")
   });
 
@@ -19691,16 +19691,16 @@ async function handleAppsWeatherController(
     if (!normalized) {
       return "yun";
     }
-    if (normalized.includes("???")) return "yujiaxue";
-    if (normalized.includes("?")) return "lei";
-    if (normalized.includes("?")) return "xue";
-    if (normalized.includes("?") || normalized.includes("?")) return "wu";
-    if (normalized.includes("??")) return "shachen";
-    if (normalized.includes("??")) return "zhenyu";
-    if (normalized.includes("?")) return "yu";
-    if (normalized.includes("?")) return "yin";
-    if (normalized.includes("?")) return "qing";
-    if (normalized.includes("?")) return "yun";
+    if (normalized.includes("雨夹雪")) return "yujiaxue";
+    if (normalized.includes("雷")) return "lei";
+    if (normalized.includes("雪")) return "xue";
+    if (normalized.includes("雾") || normalized.includes("霾")) return "wu";
+    if (normalized.includes("沙尘")) return "shachen";
+    if (normalized.includes("阵雨")) return "zhenyu";
+    if (normalized.includes("雨")) return "yu";
+    if (normalized.includes("阴")) return "yin";
+    if (normalized.includes("晴")) return "qing";
+    if (normalized.includes("云")) return "yun";
     return "yun";
   };
 
@@ -19751,7 +19751,7 @@ async function handleAppsWeatherController(
     current.win = windDir ? [windDir] : [];
     const windScale = String(now.windScale ?? "");
     const windSpeed = String(now.windSpeed ?? "");
-    current.win_speed = windScale ? `${windScale}?` : windSpeed;
+    current.win_speed = windScale ? `${windScale}级` : windSpeed;
     const vis = String(now.vis ?? "");
     current.visibility = vis ? (/km/i.test(vis) ? vis : `${vis}km`) : "";
     const hum = String(now.humidity ?? "");
@@ -19774,7 +19774,7 @@ async function handleAppsWeatherController(
       let longitude = 116.41;
       let cityName = "";
       let regionName = "";
-      let countryName = "??";
+      let countryName = "中国";
       try {
         const response = await fetch(`https://ipapi.co/${ip}/json/`);
         if (response.ok) {
@@ -19808,11 +19808,11 @@ async function handleAppsWeatherController(
       if (!city) {
         city = {
           id: "101010100",
-          cityZh: cityName || "??",
-          leaderZh: regionName || cityName || "??",
-          provinceZh: regionName || "??",
-          countryZh: countryName || "??",
-          name: cityName || "??"
+          cityZh: cityName || "北京",
+          leaderZh: regionName || cityName || "北京",
+          provinceZh: regionName || "北京",
+          countryZh: countryName || "中国",
+          name: cityName || "北京"
         };
       }
       return jsonSuccess("ok", city);

@@ -274,10 +274,10 @@ function buildWeatherV2List(now: AnyObject, forecast: AnyObject): AnyObject[] {
 
 export async function getWeatherV2CityFallback(): Promise<AnyObject> {
   return {
-    cityZh: "??",
-    provinceZh: "??",
-    countryZh: "??",
-    leaderZh: "??",
+    cityZh: "北京",
+    provinceZh: "北京",
+    countryZh: "中国",
+    leaderZh: "北京",
     id: "101010100"
   };
 }
@@ -302,7 +302,7 @@ export async function getWeatherV2Search(
     id: String(item.id ?? ""),
     cityZh: String(item.name ?? ""),
     provinceZh: "",
-    countryZh: "??",
+    countryZh: "中国",
     leaderZh: String(item.name ?? ""),
     name: String(item.name ?? "")
   }));
