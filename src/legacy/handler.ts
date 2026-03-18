@@ -1364,18 +1364,49 @@ async function readJsonFile<T>(filePath: string): Promise<T | null> {
 
   try {
 
-    const raw = await readFile(filePath, "utf8");
+    const buffer = await readFile(filePath);
 
-    return JSON.parse(raw) as T;
+    const decodeBy = (encoding: string, fatal: boolean): string | null => {
+      try {
+        const decoder = new TextDecoder(encoding as any, { fatal });
+        return decoder.decode(buffer);
+      } catch {
+        return null;
+      }
+    };
+
+    const candidates: string[] = [];
+    const utf8Strict = decodeBy("utf-8", true);
+    if (utf8Strict !== null) {
+      candidates.push(utf8Strict);
+    }
+
+    for (const encoding of ["gb18030", "gbk"]) {
+      const decoded = decodeBy(encoding, false);
+      if (decoded !== null) {
+        candidates.push(decoded);
+      }
+    }
+
+    candidates.push(buffer.toString("utf8"));
+
+    for (const raw of candidates) {
+      try {
+        return JSON.parse(raw) as T;
+      } catch {
+        // try next candidate
+      }
+    }
 
   } catch {
 
-    return null;
+    // ignore and return null
 
   }
 
-}
+  return null;
 
+}
 
 
 function sanitizePluginName(name: string): string {
@@ -2430,6 +2461,8 @@ async function handleIndexController(ctx: LegacyContext, action: string): Promis
         payload.config = await getConfigDataForUser(ctx);
 
       }
+
+      await syncLocalPluginCards(true);
 
       const cards = await sql<{ name_en: string; status: number }[]>`
 
@@ -5449,6 +5482,8 @@ async function handleCardController(ctx: LegacyContext, action: string): Promise
 
     case "index": {
 
+      await syncLocalPluginCards(true);
+
       const rows = await sql`
 
         SELECT *
@@ -8065,7 +8100,12 @@ async function runInstallSql(sqlPath: string): Promise<void> {
 
 
 
-async function upsertCardFromInfo(info: AnyObject): Promise<void> {
+async function upsertCardFromInfo(
+  info: AnyObject,
+  options: { forceEnable?: boolean } = {}
+): Promise<void> {
+
+  const forceEnable = options.forceEnable === true;
 
   const name = toStringValue(info.name, "");
 
@@ -8105,7 +8145,7 @@ async function upsertCardFromInfo(info: AnyObject): Promise<void> {
 
   await sql`
 
-    INSERT INTO card(name, name_en, version, tips, src, url, "window", setting)
+    INSERT INTO card(name, name_en, version, tips, src, url, "window", setting, status)
 
     VALUES (
 
@@ -8123,7 +8163,9 @@ async function upsertCardFromInfo(info: AnyObject): Promise<void> {
 
       ${window},
 
-      ${setting}
+      ${setting},
+
+      1
 
     )
 
@@ -8143,12 +8185,129 @@ async function upsertCardFromInfo(info: AnyObject): Promise<void> {
 
       "window" = EXCLUDED."window",
 
-      setting = EXCLUDED.setting
+      setting = EXCLUDED.setting,
+
+      status = CASE
+
+        WHEN ${forceEnable} THEN 1
+
+        ELSE card.status
+
+      END
 
   `;
 
 }
 
+
+
+async function syncLocalPluginCards(forceEnable = true): Promise<void> {
+
+  const cacheKey = forceEnable ? "cards:sync-local:force" : "cards:sync-local";
+
+  if (memoryCache.get(cacheKey) !== null) {
+
+    return;
+
+  }
+
+
+
+  const pluginsDir = path.join(ROOT_DIR, "plugins");
+
+  let entries: import("node:fs").Dirent[] = [];
+
+  try {
+
+    entries = await readdir(pluginsDir, { withFileTypes: true });
+
+  } catch {
+
+    memoryCache.set(cacheKey, true, 60);
+
+    return;
+
+  }
+
+
+
+  for (const entry of entries) {
+
+    if (!entry.isDirectory()) {
+
+      continue;
+
+    }
+
+
+
+    const pluginName = sanitizePluginName(entry.name);
+
+    if (!pluginName) {
+
+      continue;
+
+    }
+
+
+
+    const infoPath = path.join(pluginsDir, pluginName, "info.json");
+
+    if (!(await fileExists(infoPath))) {
+
+      continue;
+
+    }
+
+
+
+    const info = await readJsonFile<AnyObject>(infoPath);
+
+    if (!info) {
+
+      continue;
+
+    }
+
+
+
+    if (!toStringValue(info.name_en, "").trim()) {
+
+      info.name_en = pluginName;
+
+    }
+
+    if (!toStringValue(info.url, "").trim()) {
+
+      info.url = `/plugins/${pluginName}/card`;
+
+    }
+
+    if (!toStringValue(info.window, "").trim()) {
+
+      info.window = `/plugins/${pluginName}/window`;
+
+    }
+
+
+
+    try {
+
+      await upsertCardFromInfo(info, { forceEnable });
+
+    } catch {
+
+      // ignore single plugin failure
+
+    }
+
+  }
+
+
+
+  memoryCache.set(cacheKey, true, 60);
+
+}
 
 
 async function installCardFromRemote(
@@ -9237,6 +9396,8 @@ async function handleAppsTopSearchController(
 
     }
 
+    case "baidu":
+
     case "baidutopsearch": {
 
       const list = await fetchTopSearch("baiduTopSearch", ttl, async () => {
@@ -9921,7 +10082,13 @@ async function handleAppsWeatherController(
 
     case "everyday": {
 
-      const location = toStringValue(deepGet(ctx.requestData.query, "location", "101010100"));
+      const location = toStringValue(
+        deepGet(
+          ctx.requestData.all,
+          "location",
+          deepGet(ctx.requestData.all, "cityId", "101010100")
+        )
+      );
 
       try {
 
@@ -9957,7 +10124,13 @@ async function handleAppsWeatherController(
 
     case "now": {
 
-      const location = toStringValue(deepGet(ctx.requestData.query, "location", "101010100"));
+      const location = toStringValue(
+        deepGet(
+          ctx.requestData.all,
+          "location",
+          deepGet(ctx.requestData.all, "cityId", "101010100")
+        )
+      );
 
       try {
 
@@ -10039,7 +10212,7 @@ async function handleAppsWeatherController(
 
     case "citysearch": {
 
-      const city = toStringValue(deepGet(ctx.requestData.body, "city", "")).trim();
+      const city = toStringValue(deepGet(ctx.requestData.all, "city", "")).trim();
 
       if (!city) {
 
@@ -10475,28 +10648,157 @@ async function dispatchController(
 
 
 
+async function servePluginFile(
+  pluginName: string,
+  folder: "static" | "view",
+  fileRelative: string,
+  cacheSeconds = 0
+): Promise<NextResponse | null> {
+  const safePluginName = sanitizePluginName(pluginName);
+  const safeFileRelative = sanitizeRelativePublicPath(fileRelative);
+  if (!safePluginName || !safeFileRelative) {
+    return null;
+  }
+  const pluginFile = path.join(ROOT_DIR, "plugins", safePluginName, folder, safeFileRelative);
+  if (!(await fileExists(pluginFile))) {
+    return null;
+  }
+  const buffer = await readFile(pluginFile);
+  const type = mime.lookup(pluginFile) || "application/octet-stream";
+  return buildFileResponse(buffer, String(type), cacheSeconds);
+}
+
+function toObjectPayload(source: unknown): AnyObject {
+  if (typeof source !== "object" || source === null || Array.isArray(source)) {
+    return {};
+  }
+  return source as AnyObject;
+}
+
+async function mapWeatherNowResponse(ctx: LegacyContext): Promise<NextResponse> {
+  const response = await handleAppsWeatherController(ctx, "now");
+  const payload = toObjectPayload(await response.json());
+  if (parseNumber(payload.code, 0) !== 1) {
+    return NextResponse.json(payload);
+  }
+  const now = toObjectPayload(payload.data);
+  const windDir = toStringValue(now.windDir, "");
+  const windScale = toStringValue(now.windScale, "");
+  const windSpeed = toStringValue(now.windSpeed, "");
+  return jsonSuccess("ok", {
+    city: "",
+    temp: toStringValue(now.temp, ""),
+    weather: toStringValue(now.text, ""),
+    wind: [windDir, windScale, windSpeed].filter(Boolean).join(" ").trim(),
+    humidity: toStringValue(now.humidity, ""),
+    time: toStringValue(now.obsTime, "")
+  });
+}
+
+async function mapWeatherForecastResponse(ctx: LegacyContext): Promise<NextResponse> {
+  const response = await handleAppsWeatherController(ctx, "everyday");
+  const payload = toObjectPayload(await response.json());
+  if (parseNumber(payload.code, 0) !== 1) {
+    return NextResponse.json(payload);
+  }
+  const list = toArray<AnyObject>(payload.data);
+  const first = list[0] ?? {};
+  return jsonSuccess("ok", {
+    city: "",
+    weather: toStringValue(first.textDay, ""),
+    temp1: toStringValue(first.tempMax, ""),
+    temp2: toStringValue(first.tempMin, ""),
+    ptime: toStringValue(first.fxDate, "")
+  });
+}
+
+async function handlePluginApi(
+  ctx: LegacyContext,
+  pluginName: string,
+  action: string
+): Promise<NextResponse> {
+  const plugin = pluginName.toLowerCase();
+  const method = action.toLowerCase();
+
+  if (plugin === "topsearch") {
+    if (method === "list") {
+      const type = toStringValue(deepGet(ctx.requestData.query, "type", "baidu"), "baidu");
+      return handleAppsTopSearchController(ctx, type);
+    }
+    return jsonError("not action");
+  }
+
+  if (plugin === "weather") {
+    if (method === "search") {
+      return handleAppsWeatherController(ctx, "citysearch");
+    }
+    if (method === "now") {
+      return mapWeatherNowResponse(ctx);
+    }
+    if (method === "forecast") {
+      return mapWeatherForecastResponse(ctx);
+    }
+    if (method === "ip") {
+      return handleAppsWeatherController(ctx, "ip");
+    }
+    return jsonError("not action");
+  }
+
+  return jsonError("not action");
+}
+
 async function handlePluginsPath(ctx: LegacyContext): Promise<NextResponse> {
 
   const segments = ctx.pathSegments;
+  if (segments.length < 3) {
+    return renderCardNotFoundHtml();
+  }
 
-  if (segments.length >= 4 && segments[2].toLowerCase() === "static") {
+  const pluginName = sanitizePluginName(segments[1]);
+  if (!pluginName) {
+    return renderCardNotFoundHtml();
+  }
 
-    const pluginName = sanitizeRelativePublicPath(segments[1]);
+  const route = segments[2].toLowerCase();
 
-    const fileRelative = sanitizeRelativePublicPath(segments.slice(3).join("/"));
+  if (route === "api" && segments.length >= 4) {
+    return handlePluginApi(ctx, pluginName, segments[3]);
+  }
 
-    const pluginFile = path.join(ROOT_DIR, "plugins", pluginName, "static", fileRelative);
-
-    if (await fileExists(pluginFile)) {
-
-      const buffer = await readFile(pluginFile);
-
-      const type = mime.lookup(pluginFile) || "application/octet-stream";
-
-      return buildFileResponse(buffer, String(type), 60 * 60 * 24 * 7);
-
+  if (route === "static" && segments.length >= 4) {
+    const response = await servePluginFile(
+      pluginName,
+      "static",
+      segments.slice(3).join("/"),
+      60 * 60 * 24 * 7
+    );
+    if (response) {
+      return response;
     }
+    return renderCardNotFoundHtml();
+  }
 
+  if (route === "view" && segments.length >= 4) {
+    const response = await servePluginFile(pluginName, "view", segments.slice(3).join("/"), 60 * 5);
+    if (response) {
+      return response;
+    }
+    return renderCardNotFoundHtml();
+  }
+
+  if (segments.length === 3) {
+    const viewMap: Record<string, string> = {
+      card: "card.html",
+      window: "window.html",
+      setting: "setting.html"
+    };
+    const fileName = viewMap[route];
+    if (fileName) {
+      const response = await servePluginFile(pluginName, "view", fileName, 60 * 5);
+      if (response) {
+        return response;
+      }
+    }
   }
 
   return renderCardNotFoundHtml();
